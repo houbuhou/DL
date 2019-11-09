@@ -51,6 +51,7 @@ class DepthDoubleConv(nn.Module):
 
         return output
 
+
 class DepthInConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(DepthInConv, self).__init__()
@@ -88,14 +89,37 @@ class DepthDown(nn.Module):
 class DepthUp(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(DepthUp, self).__init__()
-        self.DepthUpUnit = nn.Sequential(
-            nn.ConvTranspose2d
-        )
+        self.DepthUpUnit = nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=2,
+                                              stride=2)
+        self.DepthConv = DepthDoubleConv(in_channels=in_channels, out_channels=out_channels)
 
+    def forward(self, x_expand, x_copy):
+        x_up = self.DepthUpUnit(x_expand)
+        x_concat = torch.cat([x_up, x_copy], dim=1)
+        output = self.DepthConv(x_concat)
+
+        return output
+
+
+class DepthOutConv(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(DepthOutConv, self).__init__()
+        self.DepthConv = DepthwiseSeparableConv2D(in_channels=in_channels, out_channels=out_channels,
+                                                  kernel_size=1)
+        self.Sigmoid = nn.Sigmoid()
+        self.BN = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        x1 = self.DepthConv(x)
+        x2 = self.BN(x1)
+        output = self.Sigmoid(x2)
+
+        return output
 
 
 class double_conv(nn.Module):
     '''(conv => BN => ReLU) * 2'''
+
     def __init__(self, in_ch, out_ch):
         super(double_conv, self).__init__()
         self.conv = nn.Sequential(
@@ -161,6 +185,7 @@ class down(nn.Module):
         x = self.mpconv(x)
         return x
 
+
 class res_down(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(res_down, self).__init__()
@@ -187,7 +212,7 @@ class up(nn.Module):
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         else:
-            self.up = nn.ConvTranspose2d(in_ch//2, in_ch//2, 2, stride=2)
+            self.up = nn.ConvTranspose2d(in_ch // 2, in_ch // 2, 2, stride=2)
 
         self.conv = double_conv(in_ch, out_ch)
 
@@ -202,6 +227,7 @@ class up(nn.Module):
         # print(x.size())
         x = self.conv(x)
         return x
+
 
 class res_up(nn.Module):
     def __init__(self, in_ch, out_ch, bilinear=False):
@@ -237,7 +263,7 @@ class res_up(nn.Module):
 class outconv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(outconv, self).__init__()
-        out_ch1 = int(in_ch/2)
+        out_ch1 = int(in_ch / 2)
         self.conv = nn.Sequential(
             nn.Conv2d(in_ch, out_ch1, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_ch1),

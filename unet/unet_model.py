@@ -38,6 +38,41 @@ class UNet(nn.Module):
         return x
 
 
+class DepthUNet(nn.Module):
+    def __init__(self, n_channels=3, n_classes=1):
+        super(DepthUNet, self).__init__()
+        self.InConv = DepthInConv(n_channels, basic_features)
+        self.Down1 = DepthDown(1 * basic_features, 2 * basic_features)
+        self.Down2 = DepthDown(2 * basic_features, 4 * basic_features)
+        self.Down3 = DepthDown(4 * basic_features, 8 * basic_features)
+        self.Down4 = DepthDown(8 * basic_features, 16 * basic_features)
+
+        self.Up1 = DepthUp(16 * basic_features, 8 * basic_features)
+        self.Up2 = DepthUp(8 * basic_features, 4 * basic_features)
+        self.Up3 = DepthUp(4 * basic_features, 2 * basic_features)
+        self.Up4 = DepthUp(2 * basic_features, 1 * basic_features)
+
+        self.OutConv = DepthOutConv(basic_features, n_classes)
+
+    def forward(self, x):
+        x1 = self.InConv(x)
+        x2 = self.Down1(x1)
+        x3 = self.Down2(x2)
+        x4 = self.Down3(x3)
+        x5 = self.Down4(x4)
+
+        x6 = self.Up1(x5, x4)
+        x7 = self.Up2(x6, x3)
+        x8 = self.Up3(x7, x2)
+        x9 = self.Up4(x8, x1)
+
+        output = self.OutConv(x9)
+
+        return output
+
+
+
+
 class R_ResUNet(nn.Module):
     def __init__(self, n_channels=3, n_classes=1):
         super(R_ResUNet, self).__init__()
