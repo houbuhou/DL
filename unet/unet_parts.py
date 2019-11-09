@@ -28,10 +28,70 @@ class DepthwiseSeparableConv2D(nn.Module):
                                        groups=1,
                                        bias=bias)
 
-    def __call__(self, x):
+    def forward(self, x):
         x = self.DepthwiseConv(x)
         x = self.PointwiseConv(x)
         return x
+
+
+class DepthDoubleConv(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(DepthDoubleConv, self).__init__()
+        self.DepthConv = nn.Sequential(
+            DepthwiseSeparableConv2D(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            DepthwiseSeparableConv2D(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        output = self.DepthConv(x)
+
+        return output
+
+class DepthInConv(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(DepthInConv, self).__init__()
+        self.DepthConv = nn.Sequential(
+            DepthwiseSeparableConv2D(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            DepthwiseSeparableConv2D(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            DepthwiseSeparableConv2D(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        )
+
+    def forward(self, x):
+        output = self.DepthConv(x)
+
+        return output
+
+
+class DepthDown(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(DepthDown, self).__init__()
+        self.DepthDownUnit = nn.Sequential(
+            nn.MaxPool2d(kernel_size=2),
+            DepthDoubleConv(in_channels=in_channels, out_channels=out_channels)
+        )
+
+    def forward(self, x):
+        output = self.DepthDownUnit(x)
+        return output
+
+
+class DepthUp(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(DepthUp, self).__init__()
+        self.DepthUpUnit = nn.Sequential(
+            nn.ConvTranspose2d
+        )
+
 
 
 class double_conv(nn.Module):
