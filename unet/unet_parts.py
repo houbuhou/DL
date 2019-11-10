@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .aspp import build_aspp
+# from .aspp import build_aspp
 
 
 class DepthwiseSeparableConv2D(nn.Module):
@@ -142,19 +142,17 @@ class double_conv(nn.Module):
 class inconv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(inconv, self).__init__()
-        ch_out1 = int(out_ch / 4)
-        ch_out2 = int(out_ch / 2)
         self.conv = nn.Sequential(
-            nn.Conv2d(in_ch, ch_out1, 3, padding=1, groups=in_ch),
-            nn.BatchNorm2d(ch_out1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(ch_out1, ch_out2, 3, padding=1, groups=ch_out1),
-            nn.BatchNorm2d(ch_out2),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(ch_out2, out_ch, 3, padding=1, groups=ch_out2),
+            nn.Conv2d(in_ch, out_ch, 3, padding=1, groups=1),
             nn.BatchNorm2d(out_ch),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_ch, out_ch, 3, padding=1, groups=out_ch),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1, groups=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1, groups=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1, groups=1),
             nn.BatchNorm2d(out_ch),
         )
         self.relu = nn.ReLU(inplace=True)
@@ -167,10 +165,10 @@ class inconv(nn.Module):
         return x
 
 
-class ASPP(nn.Module):
-    def __init__(self, in_ch):
-        super(ASPP, self).__init__()
-        self.aspp = build_aspp(backbone='resnet', output_stride=8, BatchNorm=nn.BatchNorm2d)
+# class ASPP(nn.Module):
+#     def __init__(self, in_ch):
+#         super(ASPP, self).__init__()
+#         self.aspp = build_aspp(backbone='resnet', output_stride=8, BatchNorm=nn.BatchNorm2d)
 
 
 class down(nn.Module):
@@ -209,10 +207,10 @@ class up(nn.Module):
 
         #  would be a nice idea if the upsampling could be learned too,
         #  but my machine do not have enough memory to handle all those weights
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        else:
-            self.up = nn.ConvTranspose2d(in_ch // 2, in_ch // 2, 2, stride=2)
+        # if bilinear:
+        #     self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        # else:
+        self.up = nn.ConvTranspose2d(in_ch, out_ch, 2, stride=2)
 
         self.conv = double_conv(in_ch, out_ch)
 

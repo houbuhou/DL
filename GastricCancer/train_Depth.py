@@ -20,7 +20,7 @@ from torchvision import transforms
 from PIL import Image
 
 # from eval import eval_net
-from unet import UNet, R_ResUNet
+from unet import UNet, R_ResUNet, DepthUNet
 from network import U_Net, R2AttU_Net, R2U_Net
 from model import FCN8s
 
@@ -166,22 +166,22 @@ class MyDataset(data.Dataset):
         image = TF.crop(image, i, j, h, w)
         mask = TF.crop(mask, i, j, h, w)
 
-        # # Random color jitter
-        # trans = transforms.Compose([
-        #     transforms.ColorJitter(brightness=0.25, saturation=0.25, contrast=0.25),
-        #     # transforms.Grayscale()
-        # ])
-        # image = trans(image)
-        # if self.train:
-        #     # Random horizontal flipping
-        #     if random.random() > 0.5:
-        #         image = TF.hflip(image)
-        #         mask = TF.hflip(mask)
-        #
-        #     # Random vertical flipping
-        #     if random.random() > 0.5:
-        #         image = TF.vflip(image)
-        #         mask = TF.vflip(mask)
+        # Random color jitter
+        trans = transforms.Compose([
+            transforms.ColorJitter(brightness=0.25, saturation=0.25, contrast=0.25),
+            # transforms.Grayscale()
+        ])
+        image = trans(image)
+        if self.train:
+            # Random horizontal flipping
+            if random.random() > 0.5:
+                image = TF.hflip(image)
+                mask = TF.hflip(mask)
+
+            # Random vertical flipping
+            if random.random() > 0.5:
+                image = TF.vflip(image)
+                mask = TF.vflip(mask)
 
         # Transform to tensor
         image = TF.to_tensor(image)
@@ -406,8 +406,9 @@ if __name__ == '__main__':
     # elif(net_choice == 'ResUnet'):
     #     net = R2U_Net()
     # net = UNet(n_classes=1, n_channels=3)
-    net = R_ResUNet()
+    # net = R_ResUNet()
 
+    net = depthUNet()
     if args.load:
         net.load_state_dict(torch.load(args.load))
         print('Model loaded from {}'.format(args.load))
