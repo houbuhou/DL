@@ -83,7 +83,7 @@ class R_ResUNet(nn.Module):
         self.up2 = up(8 * basic_features, 2 * basic_features)
         self.up3 = up(4 * basic_features, basic_features)
         self.up4 = up(2 * basic_features, basic_features)
-        self.aspp = ASPP(16 * basic_features)
+        # self.aspp = ASPP(16 * basic_features)
 
         self.outc = outconv(basic_features, n_classes)
 
