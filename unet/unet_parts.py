@@ -34,9 +34,9 @@ class DepthwiseSeparableConv2D(nn.Module):
         return x
 
 
-class SelfAttentionPart(nn.Module):
-    def __init__(self, low_in_channels, high_in_channels, out_channels, key_channels, value_channels):
-        super(SelfAttentionPart, self).__init__()
+class NonLocalFeatureFusionPart(nn.Module):
+    def __init__(self, low_in_channels, high_in_channels, out_channels, key_channels=1, value_channels=1):
+        super(NonLocalFeatureFusionPart, self).__init__()
         self.low_in_channels = low_in_channels
         self.high_in_channels = high_in_channels
         self.out_channels = out_channels
@@ -57,6 +57,36 @@ class SelfAttentionPart(nn.Module):
                                    kernel_size=1,
                                    stride=1,
                                    padding=0)
+
+        self.W = nn.Conv2d(in_channels=self.value_channels,
+                           out_channels=self.out_channels,
+                           kernel_size=1,
+                           stride=1,
+                           padding=0)
+        nn.init.constant_(self.W.bias, 0)
+        nn.init.constant_(self.W.weight, 0)
+
+    def forward(self, x_low, x_high):
+        BatchSize = x_low.size(0)
+        query = self.ConvQuery(x_high).view(BatchSize, self.key_channels, -1)
+        key = self.ConvKey(x_low).view(BatchSize, self.key_channels, -1)
+        value = self.ConvValue(x_low).view(BatchSize, self.value_channels, -1)
+        query = query.permute(0, 2, 1)
+        value = value.permute(0, 2, 1)
+
+        SimMap = torch.matmul(query, key)
+        # SimMap = SimMap * (self.key_channels ** -0.5)
+        SimMap = F.softmax(SimMap, dim=-1)
+        print(SimMap)
+
+        context = torch.matmul(SimMap, value)
+        context = context.permute(0, 2, 1).contiguous()
+        context = context.view(BatchSize, self.value_channels, *x_high.size()[2:])
+        context = self.W(context)
+
+        return context + x_high
+
+
 
 
 class DepthDoubleConv(nn.Module):
@@ -252,6 +282,28 @@ class up(nn.Module):
         return x
 
 
+class NLFF_up(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(NLFF_up, self).__init__()
+        self.up = nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=2, stride=2)
+        self.conv = double_conv(out_channels, out_channels)
+        self.NLFP = NonLocalFeatureFusionPart(low_in_channels=out_channels,
+                                              high_in_channels=out_channels,
+                                              out_channels=out_channels,
+                                              key_channels=in_channels//2,
+                                              value_channels=in_channels//2
+                                              )
+
+    def forward(self, x_low, x_high):
+        x1 = self.up(x_high)
+        print(x1.shape)
+        x = self.NLFP(x_low, x1)
+        x = self.conv(x)
+
+        return x
+
+
+
 class res_up(nn.Module):
     def __init__(self, in_ch, out_ch, bilinear=False):
         super(res_up, self).__init__()
@@ -434,19 +486,23 @@ class NONLocalBlock3D(_NonLocalBlockND):
 
 if __name__ == '__main__':
     import torch
-
-    for (sub_sample, bn_layer) in [(True, True), (False, False), (True, False), (False, True)]:
-        img = torch.zeros(2, 3, 20)
-        net = NONLocalBlock1D(3, sub_sample=sub_sample, bn_layer=bn_layer)
-        out = net(img)
-        print(out.size())
-
-        img = torch.zeros(2, 3, 20, 20)
-        net = NONLocalBlock2D(3, sub_sample=sub_sample, bn_layer=bn_layer)
-        out = net(img)
-        print(out.size())
-
-        img = torch.randn(2, 3, 8, 20, 20)
-        net = NONLocalBlock3D(3, sub_sample=sub_sample, bn_layer=bn_layer)
-        out = net(img)
-        print(out.size())
+    img_high = torch.randn(2, 4, 32, 32)
+    img_low = torch.randn(2, 2, 64, 64)
+    net = NLFF_up(4, 2)
+    out = net(img_low, img_high)
+    print(out.shape)
+    # for (sub_sample, bn_layer) in [(True, True), (False, False), (True, False), (False, True)]:
+    #     img = torch.zeros(2, 3, 20)
+    #     net = NONLocalBlock1D(3, sub_sample=sub_sample, bn_layer=bn_layer)
+    #     out = net(img)
+    #     print(out.size())
+    #
+    #     img = torch.zeros(2, 3, 20, 20)
+    #     net = NONLocalBlock2D(3, sub_sample=sub_sample, bn_layer=bn_layer)
+    #     out = net(img)
+    #     print(out.size())
+    #
+    #     img = torch.randn(2, 3, 8, 20, 20)
+    #     net = NONLocalBlock3D(3, sub_sample=sub_sample, bn_layer=bn_layer)
+    #     out = net(img)
+    #     print(out.size())
