@@ -77,7 +77,6 @@ class NonLocalFeatureFusionPart(nn.Module):
         SimMap = torch.matmul(query, key)
         # SimMap = SimMap * (self.key_channels ** -0.5)
         SimMap = F.softmax(SimMap, dim=-1)
-        print(SimMap)
 
         context = torch.matmul(SimMap, value)
         context = context.permute(0, 2, 1).contiguous()
@@ -85,6 +84,101 @@ class NonLocalFeatureFusionPart(nn.Module):
         context = self.W(context)
 
         return context + x_high
+
+
+class ASPPBottleneck(nn.Module):
+    def __init__(self, in_channels, out_channels, basic_channels=256):
+        super(ASPPBottleneck, self).__init__()
+        self.Conv1x1 = nn.Sequential(nn.Conv2d(in_channels=in_channels,
+                                               out_channels=basic_channels,
+                                               kernel_size=1,
+                                               stride=1,
+                                               padding=0,
+                                               dilation=1),
+                                     nn.BatchNorm2d(basic_channels),
+                                     nn.ReLU())
+
+        self.Conv3x3D6 = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=basic_channels,
+                      kernel_size=3,
+                      stride=1,
+                      padding=6,
+                      dilation=6),
+            nn.BatchNorm2d(basic_channels),
+            nn.ReLU()
+        )
+        self.Conv3x3D12 = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=basic_channels,
+                      kernel_size=3,
+                      stride=1,
+                      padding=12,
+                      dilation=12),
+            nn.BatchNorm2d(basic_channels),
+            nn.ReLU()
+        )
+        self.Conv3x3D18 = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=basic_channels,
+                      kernel_size=3,
+                      stride=1,
+                      padding=18,
+                      dilation=18),
+            nn.BatchNorm2d(basic_channels),
+            nn.ReLU()
+        )
+
+        self.AveragePool = nn.AdaptiveAvgPool2d(1)          # My problem is that why the output dimension is 1
+        self.Conv1x1Avg = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=basic_channels,
+                      kernel_size=1,
+                      stride=1,
+                      padding=0,
+                      dilation=1),
+            nn.BatchNorm2d(basic_channels),
+            nn.ReLU()
+        )
+
+        self.OutConv = nn.Sequential(
+            nn.Conv2d(
+                in_channels=5*basic_channels,
+                out_channels=basic_channels,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                dilation=1
+            ),
+            nn.BatchNorm2d(basic_channels),
+            nn.ReLU(),
+            nn.Conv2d(
+                in_channels=basic_channels,
+                out_channels=out_channels,
+                kernel_size=1,
+                stride=1,
+                padding=0,
+                dilation=1
+            ),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        BatchSize, C, H, W = x.size()
+        x1 = self.Conv1x1(x)
+        x2 = self.Conv3x3D6(x)
+        x3 = self.Conv3x3D12(x)
+        x4 = self.Conv3x3D18(x)
+
+        x_avg = self.AveragePool(x)
+        x5 = self.Conv1x1Avg(x_avg)
+        x5 = F.upsample(x5, size=(H, W), mode="bilinear")
+
+        output = torch.cat([x1, x2, x3, x4, x5], dim=1)
+        output = self.OutConv(output)
+
+        return output
 
 
 
@@ -175,17 +269,17 @@ class DepthOutConv(nn.Module):
 class double_conv(nn.Module):
     '''(conv => BN => ReLU) * 2'''
 
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch, out_ch, dilation=1):
         super(double_conv, self).__init__()
         self.conv = nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, 3, padding=1),
+            nn.Conv2d(in_ch, out_ch, 3, padding=1, dilation=dilation),
             nn.BatchNorm2d(out_ch),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_ch, out_ch, 3, padding=1),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1, dilation=dilation),
             nn.BatchNorm2d(out_ch),
             nn.ReLU(inplace=True)
         )
-        self.outconv = nn.Conv2d(in_ch, out_ch, 3, padding=1)
+        self.outconv = nn.Conv2d(in_ch, out_ch, 3, padding=1, dilation=dilation)
         self.BN = nn.BatchNorm2d(out_ch)
         self.relu = nn.ReLU(inplace=True)
 
