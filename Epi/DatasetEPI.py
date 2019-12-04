@@ -15,14 +15,12 @@ class EPI(data.Dataset):
         self.target_paths = target_paths
         self.files = os.listdir(self.image_paths)
         check = 0
-        while (check < len(self.files)):
-            if (self.files[check].find('.tif') < 0):
+        while check < len(self.files):
+            if self.files[check].find('.tif') < 0:
                 remove_ele = self.files[check]
-                # print(self.files[check])
                 self.files.remove(remove_ele)
                 check -= 1
             check += 1
-        #         print(self.files)
         self.file_name = (f[:-4] for f in self.files)
         self.file_name = list(self.file_name)
         # print(self.file_name)
@@ -84,7 +82,7 @@ class EPI(data.Dataset):
         image = cv2.imread(self.image_paths + self.files[index])
         mask_name = str(self.mask_name)
         # print(mask_name.find(self.file_name[index]))
-        if (mask_name.find(self.file_name[index]) < 0):
+        if mask_name.find(self.file_name[index]) < 0:
             mask = np.zeros([1000, 1000], dtype=np.uint8)
         else:
             mask = Image.open(self.target_paths + self.file_name[index] + '_mask.png')
@@ -103,3 +101,10 @@ class EPI(data.Dataset):
 
     def __len__(self):
         return len(self.file_name)
+
+
+if __name__ == '__main__':
+    test = EPI(
+        image_paths="D:" + os.sep + "epi" + os.sep + "train" + os.sep,
+        target_paths="D:" + os.sep + "epi" + os.sep + "masks" + os.sep
+    )

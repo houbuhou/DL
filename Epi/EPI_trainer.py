@@ -4,7 +4,6 @@ from optparse import OptionParser
 import numpy as np
 from tqdm import tqdm
 import time
-import utils
 import nibabel
 import matplotlib.pyplot as plt
 import torchvision.transforms.functional as TF
@@ -18,22 +17,15 @@ from torch.autograd import Variable
 import random
 from torchvision import transforms
 from PIL import Image
+from Epi.DatasetEPI import EPI
+from unet.unet_parts import ASPPBottleneck
 
 # from eval import eval_net
 from unet import UNet, R_ResUNet
-from network import U_Net, R2AttU_Net, R2U_Net
-from model import FCN8s
-
-from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch
 # from dice_loss import dice_coeff
 import warnings
 import logging
 import os
-
-from DatasetEPI import EPI
-from modeling.deeplab import *
-from modeling.sync_batchnorm.replicate import patch_replication_callback
-
 
 warnings.filterwarnings('ignore')
 device = 0
@@ -56,7 +48,7 @@ class DSC_loss(nn.Module):
 
         t = ((2 * self.inter.float()) + smooth) / self.union.float()
         t_0 = ((2 * self.inter_0.float()) + smooth) / self.union_0.float()
-        obj_dice = (t + t_0)/2
+        obj_dice = t
 
         return 1 - obj_dice.item()
 
@@ -67,61 +59,6 @@ def dice_coeff(input, target):
     s = DSC_loss().forward(input, target, smooth=1e-7)
 
     return 1 - s
-
-
-class MyDataset(data.Dataset):
-    def __init__(self, image_paths, target_paths, resize=(512, 512),  train=True):
-        self.train = train
-        self.image_paths = image_paths
-        self.target_paths = target_paths
-        self.files = os.listdir(self.image_paths)
-        self.file_name = (f[:-5] for f in self.files)
-        self.file_name = list(self.file_name)
-        self.labels = os.listdir(self.target_paths)
-        self.resize = resize
-
-    def transform(self, image, mask):
-        # Resize
-        resize = transforms.Resize(size=self.resize)
-        image = resize(image)
-        mask = resize(mask)
-
-        # Random crop
-        i, j, h, w = transforms.RandomCrop.get_params(
-            image, output_size=(512, 512))
-        image = TF.crop(image, i, j, h, w)
-        mask = TF.crop(mask, i, j, h, w)
-
-        # Random color jitter
-        trans = transforms.Compose([
-            transforms.ColorJitter(brightness=0.25, saturation=0.25, contrast=0.25),
-            # transforms.Grayscale()
-        ])
-        image = trans(image)
-        if self.train:
-            # Random horizontal flipping
-            if random.random() > 0.5:
-                image = TF.hflip(image)
-                mask = TF.hflip(mask)
-
-            # Random vertical flipping
-            if random.random() > 0.5:
-                image = TF.vflip(image)
-                mask = TF.vflip(mask)
-
-        # Transform to tensor
-        image = TF.to_tensor(image)
-        mask = TF.to_tensor(mask)
-        return image, mask
-
-    def __getitem__(self, index):
-        image = Image.open(self.image_paths + self.files[index])
-        mask = Image.open(self.target_paths + self.file_name[index] + '._mask.jpg')
-        x, y = self.transform(image, mask)
-        return x, y
-
-    def __len__(self):
-        return len(self.files)
 
 
 def eval_net(net, dataset):
@@ -153,10 +90,8 @@ def eval_net(net, dataset):
         # To normalize predict mask
         # mask_pred = F.sigmoid(mask_pred)
 
-        dice += dice_coeff(mask_pred, true_mask).item()
+        dice += dice_coeff(mask_pred, true_mask)
     return dice / (dataset.__len__())
-
-
 
 
 def train_net(net,
@@ -166,10 +101,10 @@ def train_net(net,
               save_cp=True,
               gpu=True,):
 
-    dir_img = 'data/epi/'
-    dir_mask = 'data/epi/masks/'
-    dir_val = 'data/epi/val/'
-    dir_test = 'data/epi/test/'
+    dir_img = "D:" + os.sep + "epi" + os.sep + "train" + os.sep
+    dir_mask = "D:" + os.sep + "epi" + os.sep + "masks" + os.sep
+    dir_val = "D:" + os.sep + "epi" + os.sep + "val" + os.sep
+    dir_test = "D:" + os.sep + "epi" + os.sep + "test" + os.sep
 
     train = EPI(image_paths=dir_img, target_paths=dir_mask,  train=True)
     val = EPI(image_paths=dir_val, target_paths=dir_mask, train=False)
@@ -194,7 +129,7 @@ def train_net(net,
                           weight_decay=0.0005)
 
     # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 300], gamma=0.1)
     # scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
 
@@ -204,14 +139,9 @@ def train_net(net,
 
     test_dice = []
     val_dice = []
-    best_dice = 0
+    BestDice = 0
     for epoch in tqdm(range(epochs)):
-        if epochs <= 100:
-            train = EPI(image_paths=dir_img, target_paths=dir_mask, train=True)
-        elif epochs <= 200:
-            train = EPI(image_paths=dir_img, target_paths=dir_mask, train=True)
-        else:
-            train = EPI(image_paths=dir_img, target_paths=dir_mask, train=True)
+        train = EPI(image_paths=dir_img, target_paths=dir_mask, train=True)
         val = EPI(image_paths=dir_val, target_paths=dir_mask, train=False)
         train_loader = data.DataLoader(train, batch_size=2, shuffle=True, drop_last=True)
         test = EPI(image_paths=dir_test, target_paths=dir_mask, train=False)
@@ -235,9 +165,9 @@ def train_net(net,
             true_mask_flat = true_mask.view(-1)
             loss = 0
             # loss = criterion_BCE(mask_prob_flat, true_mask_flat)
-            loss += criterion_DSC(mask_pred, true_mask) #+ criterion_BCE(mask_prob_flat, true_mask_flat)
+            loss += criterion_BCE(mask_prob_flat, true_mask_flat)
             # loss += criterion_DSC(mask_pred[1], true_mask[1])
-            # print(loss.item())
+            # print(loss)
             epoch_loss += loss.item()
 
             # print('{0:.4f} --- loss: {1:.6f}'.format(i * batch_size / train.__len__(), loss.item()))
@@ -259,7 +189,7 @@ def train_net(net,
         print('\nEpoch{} finished ! Loss: {}'.format(epoch+1, epoch_loss / train.__len__()))
         # end = time.time()
         # print("time={}s".format(end-start))
-        scheduler.step()
+        scheduler.step(epoch)
         # scheduler.step(epoch_loss / train.__len__())
         logging.info('Epoch {} Loss: {}'.format(epoch+1, epoch_loss / train.__len__()))
         test_dice_item = eval_net(net, test)
@@ -271,18 +201,20 @@ def train_net(net,
         print('Test Dice Coeff: {}'.format(test_dice_item))
         logging.info('Test: {}'.format(test_dice_item))
         logging.info('\n')
-        torch.save(net.state_dict(),
-                   dir_checkpoint + 'CP{}.pth'.format(epoch + 1))
+        if val_dice_item >= BestDice:
+            torch.save(net.state_dict(),
+                       "." + 'CP{}.pth'.format(epoch + 1))
+            BestDice = val_dice_item
         # print('Checkpoint {} saved !'.format(epoch + 1))
 
 
 def get_args():
     parser = OptionParser()
-    parser.add_option('-e', '--epochs', dest='epochs', default=10, type='int',
+    parser.add_option('-e', '--epochs', dest='epochs', default=50, type='int',
                       help='number of epochs')
     parser.add_option('-b', '--batch-size', dest='batchsize', default=1,
                       type='int', help='batch size')
-    parser.add_option('-l', '--learning-rate', dest='lr', default=0.02,
+    parser.add_option('-l', '--learning-rate', dest='lr', default=0.0001,
                       type='float', help='learning rate')
     parser.add_option('-g', '--gpu', action='store_true', dest='gpu',
                       default=True, help='use cuda')
@@ -300,39 +232,28 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     logging.basicConfig(filename=os.path.join(os.getcwd(), args.net+'.txt'),
-                        level=logging.DEBUG)
-    logging.getLogger().setLevel(logging.DEBUG)
+                        level=logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
     device = args.device
     net_choice = args.net
-    print(net_choice == 'ResUnet')
-    # if(net_choice == 'UNet'):
-    #     net = U_Net()
-    # elif(net_choice == 'FCN'):
-    #     net = FCN8s(n_class=1)
-    # elif(net_choice == 'DeepLab'):
-    #     net = DeepLab(num_classes=1,
-    #                   backbone='resnet',
-    #                   output_stride=16)
-    # elif(net_choice == 'ResUnet'):
-    #     net = R2U_Net()
-    # net = UNet(n_classes=1, n_channels=3)
-    net = R_ResUNet()
+    # network = UNet(n_classes=1, n_channels=3)
+    network = ASPPBottleneck(in_channels=3, out_channels=1, basic_channels=64)
 
     if args.load:
-        net.load_state_dict(torch.load(args.load))
+        network.load_state_dict(torch.load(args.load))
         print('Model loaded from {}'.format(args.load))
     if args.gpu:
-        net.cuda(device)
+        network.cuda(device)
         cudnn.benchmark = False  # faster convolutions, but more memory
 
     try:
-        train_net(net=net,
+        train_net(net=network,
                   epochs=args.epochs,
                   batch_size=args.batchsize,
                   lr=args.lr,
                   gpu=args.gpu)
     except KeyboardInterrupt:
-        torch.save(net.state_dict(), 'INTERRUPTED.pth')
+        torch.save(network.state_dict(), 'INTERRUPTED.pth')
         print('Saved interrupt')
         try:
             sys.exit(0)

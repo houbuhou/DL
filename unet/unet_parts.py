@@ -129,7 +129,7 @@ class ASPPBottleneck(nn.Module):
             nn.ReLU()
         )
 
-        self.AveragePool = nn.AdaptiveAvgPool2d(1)          # My problem is that why the output dimension is 1
+        self.AveragePool = nn.AdaptiveAvgPool2d(2)          # My problem is that why the output dimension is 1
         self.Conv1x1Avg = nn.Sequential(
             nn.Conv2d(in_channels=in_channels,
                       out_channels=basic_channels,
