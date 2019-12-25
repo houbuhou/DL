@@ -1,7 +1,7 @@
 from unet.unet_parts import *
 
 
-basic_features = 64
+basic_features = 4
 
 
 class UNet(nn.Module):
@@ -156,3 +156,40 @@ if __name__ == '__main__':
     #     output2 = Net1(TestTensor)
     # end = time.time()
     # print(end-start)
+
+
+class CNN(nn.Module):
+    def __init__(self, n_channels=3, n_classes=2):
+        super(CNN, self).__init__()
+        self.inc = inconv(n_channels, basic_features)
+        self.down1 = down(1 * basic_features, 2 * basic_features)
+        self.down2 = down(2 * basic_features, 4 * basic_features)
+        self.down3 = down(4 * basic_features, 8 * basic_features)
+        self.down4 = down(8 * basic_features, 8 * basic_features)
+        self.pool = nn.MaxPool2d(32)
+        self.fc1 = nn.Sequential(
+            nn.Linear(8 * basic_features, 4 * basic_features),
+            nn.LeakyReLU()
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(4 * basic_features, n_classes),
+            nn.Softmax()
+        )
+
+    def forward(self, x):
+        BatchSize = x.size(0)
+        x = self.inc(x)
+        x = self.down1(x)
+        x = self.down2(x)
+        x = self.down3(x)
+        x = self.down4(x)
+        x = self.pool(x)
+        x = x.view(BatchSize, -1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+
+        return x
+
+
+
+

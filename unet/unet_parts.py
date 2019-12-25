@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 
 class DepthwiseSeparableConv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, padding=0, stride=1, dilation=1, groups=1, bias=False):
+    def __init__(self, in_channels, out_channels, kernel_size, padding=0, stride=1, dilation=1, groups=1, bias=True):
         super(DepthwiseSeparableConv2D, self).__init__()
 
         self.DepthwiseConv = nn.Conv2d(in_channels=in_channels,
@@ -106,7 +106,7 @@ class ASPPBottleneck(nn.Module):
                       padding=6,
                       dilation=6),
             nn.BatchNorm2d(basic_channels),
-            nn.ReLU()
+            nn.SELU()
         )
         self.Conv3x3D12 = nn.Sequential(
             nn.Conv2d(in_channels=in_channels,
@@ -116,7 +116,7 @@ class ASPPBottleneck(nn.Module):
                       padding=12,
                       dilation=12),
             nn.BatchNorm2d(basic_channels),
-            nn.ReLU()
+            nn.SELU()
         )
         self.Conv3x3D18 = nn.Sequential(
             nn.Conv2d(in_channels=in_channels,
@@ -126,7 +126,7 @@ class ASPPBottleneck(nn.Module):
                       padding=18,
                       dilation=18),
             nn.BatchNorm2d(basic_channels),
-            nn.ReLU()
+            nn.SELU()
         )
 
         self.AveragePool = nn.AdaptiveAvgPool2d(2)          # My problem is that why the output dimension is 1
@@ -138,7 +138,7 @@ class ASPPBottleneck(nn.Module):
                       padding=0,
                       dilation=1),
             nn.BatchNorm2d(basic_channels),
-            nn.ReLU()
+            nn.SELU()
         )
 
         self.OutConv = nn.Sequential(
@@ -151,7 +151,7 @@ class ASPPBottleneck(nn.Module):
                 dilation=1
             ),
             nn.BatchNorm2d(basic_channels),
-            nn.ReLU(),
+            nn.SELU(),
             nn.Conv2d(
                 in_channels=basic_channels,
                 out_channels=out_channels,
@@ -161,7 +161,7 @@ class ASPPBottleneck(nn.Module):
                 dilation=1
             ),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU()
+            nn.SELU()
         )
 
     def forward(self, x):
@@ -189,10 +189,12 @@ class DepthDoubleConv(nn.Module):
         self.DepthConv = nn.Sequential(
             DepthwiseSeparableConv2D(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
+            # nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
             DepthwiseSeparableConv2D(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            # nn.ReLU(inplace=True)
+            nn.LeakyReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -207,13 +209,16 @@ class DepthInConv(nn.Module):
         self.DepthConv = nn.Sequential(
             DepthwiseSeparableConv2D(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
+            # nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
             DepthwiseSeparableConv2D(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
+            # nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
             DepthwiseSeparableConv2D(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
+            # nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -390,7 +395,7 @@ class NLFF_up(nn.Module):
 
     def forward(self, x_low, x_high):
         x1 = self.up(x_high)
-        print(x1.shape)
+        # print(x1.shape)
         x = self.NLFP(x_low, x1)
         x = self.conv(x)
 
