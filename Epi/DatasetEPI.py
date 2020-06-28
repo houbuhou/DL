@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import cv2
+import torch
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 import torch.utils.data as data
@@ -10,10 +11,11 @@ import random
 
 
 class EPI(data.Dataset):
-    def __init__(self, image_paths, target_paths, train=True):
+    def __init__(self, image_paths, target_paths, train=False):
         self.image_paths = image_paths
         self.target_paths = target_paths
         self.files = os.listdir(self.image_paths)
+        self.train = train
         check = 0
         while check < len(self.files):
             if self.files[check].find('.tif') < 0:
@@ -45,33 +47,38 @@ class EPI(data.Dataset):
         return eq
 
     def transform(self, image, mask):
-        # Resize
-        resize = transforms.Resize(size=(1000, 1000))
-        image = resize(image)
-        mask = resize(mask)
+        if self.train:
+            # Resize
+            resize = transforms.Resize(size=(512, 512))
+            image = resize(image)
+            mask = resize(mask)
 
-        # colorjitter
-        trans = transforms.Compose([
-            transforms.ColorJitter(brightness=0.25, saturation=0.25, contrast=0.25)
-        ])
-        if random.random() > 0.5:
-            image = trans(image)
+            # colorjitter
+            trans = transforms.Compose([
+                transforms.ColorJitter(brightness=0.25, saturation=0.25, contrast=0.25)
+            ])
+            if random.random() > 0.5:
+                image = trans(image)
 
-        # Random crop
-        i, j, h, w = transforms.RandomCrop.get_params(
-            image, output_size=(512, 512))
-        image = TF.crop(image, i, j, h, w)
-        mask = TF.crop(mask, i, j, h, w)
+            # Random crop
+            i, j, h, w = transforms.RandomCrop.get_params(
+                image, output_size=(512, 512))
+            image = TF.crop(image, i, j, h, w)
+            mask = TF.crop(mask, i, j, h, w)
 
-        # Random horizontal flipping
-        if random.random() > 0.5:
-            image = TF.hflip(image)
-            mask = TF.hflip(mask)
+            # Random horizontal flipping
+            if random.random() > 0.5:
+                image = TF.hflip(image)
+                mask = TF.hflip(mask)
 
-        # Random vertical flipping
-        if random.random() > 0.5:
-            image = TF.vflip(image)
-            mask = TF.vflip(mask)
+            # Random vertical flipping
+            if random.random() > 0.5:
+                image = TF.vflip(image)
+                mask = TF.vflip(mask)
+        else:
+            resize = transforms.Resize(size=(512, 512))
+            image = resize(image)
+            mask = resize(mask)
 
         # Transform to tensor
         image = TF.to_tensor(image)
@@ -84,8 +91,10 @@ class EPI(data.Dataset):
         # print(mask_name.find(self.file_name[index]))
         if mask_name.find(self.file_name[index]) < 0:
             mask = np.zeros([1000, 1000], dtype=np.uint8)
+            z = torch.FloatTensor([0, 1])
         else:
             mask = Image.open(self.target_paths + self.file_name[index] + '_mask.png')
+            z = torch.FloatTensor([1, 0])
         image = Image.fromarray(np.uint8(image))
         mask = Image.fromarray(np.uint8(mask))
         # plt.figure(0)
@@ -93,9 +102,10 @@ class EPI(data.Dataset):
         # plt.figure(1)
         # plt.imshow(mask)
         # plt.show()
-        image_pro = self.pre_process(image)
+        # image_pro = self.pre_process(image)
+        image_pro = image
         x, y = self.transform(image_pro, mask)
-        return x, y
+        return x, y, z
 
     #         return image, mask
 
@@ -103,8 +113,82 @@ class EPI(data.Dataset):
         return len(self.file_name)
 
 
+class EPIPositive(data.Dataset):
+    def __init__(self, image_paths, target_paths, train=False):
+        self.image_paths = image_paths
+        self.target_paths = target_paths
+        self.files = os.listdir(self.image_paths)
+        self.train = train
+        # print(self.file_name)
+        self.mask_name = os.listdir(self.target_paths)
+
+    def transform(self, image, mask):
+        if self.train:
+            # Resize
+            resize = transforms.Resize(size=(512, 512))
+            image = resize(image)
+            mask = resize(mask)
+
+            # colorjitter
+            trans = transforms.Compose([
+                transforms.ColorJitter(brightness=0.25, saturation=0.25, contrast=0.25)
+            ])
+            if random.random() > 0.5:
+                image = trans(image)
+
+            # Random crop
+            i, j, h, w = transforms.RandomCrop.get_params(
+                image, output_size=(512, 512))
+            image = TF.crop(image, i, j, h, w)
+            mask = TF.crop(mask, i, j, h, w)
+
+            # Random horizontal flipping
+            if random.random() > 0.5:
+                image = TF.hflip(image)
+                mask = TF.hflip(mask)
+
+            # Random vertical flipping
+            if random.random() > 0.5:
+                image = TF.vflip(image)
+                mask = TF.vflip(mask)
+        else:
+            resize = transforms.Resize(size=(512, 512))
+            image = resize(image)
+            mask = resize(mask)
+
+        # Transform to tensor
+        image = TF.to_tensor(image)
+        mask = TF.to_tensor(mask)
+        return image, mask
+
+    def __getitem__(self, index):
+        mask = Image.open(self.target_paths + self.mask_name[index])
+        ImageName = self.mask_name[index][:-9]
+        image = cv2.imread(self.image_paths + ImageName + '.tif')
+
+        image = Image.fromarray(np.uint8(image))
+        mask = Image.fromarray(np.uint8(mask))
+        # plt.figure(0)
+        # plt.imshow(image)
+        # plt.figure(1)
+        # plt.imshow(mask)
+        # plt.show()
+        # image_pro = self.pre_process(image)
+        image_pro = image
+        x, y = self.transform(image_pro, mask)
+        return x, y
+
+    #         return image, mask
+
+    def __len__(self):
+        return len(self.mask_name)
+
+
+
+
 if __name__ == '__main__':
     test = EPI(
-        image_paths="D:" + os.sep + "epi" + os.sep + "train" + os.sep,
+        image_paths="D:" + os.sep + "epi" + os.sep + "all" + os.sep,
         target_paths="D:" + os.sep + "epi" + os.sep + "masks" + os.sep
     )
+    print(test[8])
