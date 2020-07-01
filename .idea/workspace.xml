@@ -1,13 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="29561eea-c161-4b2f-8f73-48d084ef88aa" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/apex_resnet_example.py" afterDir="false" />
+    <list default="true" id="29561eea-c161-4b2f-8f73-48d084ef88aa" name="Default Changelist" comment="ok">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Epi/DatasetEPI.py" beforeDir="false" afterPath="$PROJECT_DIR$/Epi/DatasetEPI.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/unet/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/unet/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/unet/unet_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/unet/unet_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/unet/unet_parts.py" beforeDir="false" afterPath="$PROJECT_DIR$/unet/unet_parts.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -187,7 +183,14 @@
       <option name="project" value="LOCAL" />
       <updated>1575455850726</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="ok">
+      <created>1593347110238</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1593347110238</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
