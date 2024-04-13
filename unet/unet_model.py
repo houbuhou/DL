@@ -17,12 +17,13 @@ def channel_shuffle(x, groups):
 
 
 class InvertedResidual(nn.Module):
-    def __init__(self, inp, oup, stride):
+    def __init__(self, inp, oup, stride, dilation=1):
         super(InvertedResidual, self).__init__()
 
         if not (1 <= stride <= 3):
             raise ValueError('illegal stride value')
         self.stride = stride
+        self.dilation = dilation
 
         branch_features = oup // 2
         assert (self.stride != 1) or (inp == branch_features << 1)
@@ -31,7 +32,7 @@ class InvertedResidual(nn.Module):
             self.branch1 = nn.Sequential(
                 self.depthwise_conv(inp, inp, kernel_size=3, stride=self.stride, padding=1),
                 nn.BatchNorm2d(inp),
-                nn.Conv2d(inp, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+                nn.Conv2d(inp, branch_features, kernel_size=1, stride=1, padding=0, bias=False, dilation=self.dilation),
                 nn.BatchNorm2d(branch_features),
                 nn.ReLU(inplace=True),
             )
@@ -51,8 +52,8 @@ class InvertedResidual(nn.Module):
         )
 
     @staticmethod
-    def depthwise_conv(i, o, kernel_size, stride=1, padding=0, bias=False):
-        return nn.Conv2d(i, o, kernel_size, stride, padding, bias=bias, groups=i)
+    def depthwise_conv(i, o, kernel_size, stride=1, padding=0, dilation=1, bias=False):
+        return nn.Conv2d(i, o, kernel_size, stride, padding, bias=bias, groups=i, dilation=dilation)
 
     def forward(self, x):
         if self.stride == 1:
@@ -256,19 +257,21 @@ if __name__ == '__main__':
     start = time.time()
     output = Net2(TestTensor)
     output2 = Net1(TestTensor)
-    del output
-    del output2
-    for i in range(200):
-        output = Net1(TestTensor)
-        del output
-    end = time.time()
-    print(end-start)
-    start = time.time()
-    for i in range(200):
-        output2 = Net2(TestTensor)
-        del output2
-    end = time.time()
-    print(end-start)
+    print(output2.shape)
+    print(output.shape)
+    # del output
+    # del output2
+    # for i in range(200):
+    #     output = Net1(TestTensor)
+    #     del output
+    # end = time.time()
+    # print(end-start)
+    # start = time.time()
+    # for i in range(200):
+    #     output2 = Net2(TestTensor)
+    #     del output2
+    # end = time.time()
+    # print(end-start)
 
 
 
